@@ -15,7 +15,8 @@
 * **Архитектура:** Модульная система автозагрузок (`GameState`, `Economy`, `Audio`, `Achievements`, `FoxSettings`)
 
 ## 🚀 Запуск проекта
+
 1. Установите [Godot Engine 4.x](https://godotengine.org/).
 2. Клонируйте репозиторий:
-   ```bash
-  git clone https://github.com/Liss14612/the-fox-click-reincarnation.git
+```bash
+git clone https://github.com/Liss14612/the-fox-click-reincarnation.git
