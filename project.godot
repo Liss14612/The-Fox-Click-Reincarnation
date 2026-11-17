@@ -1,0 +1,54 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="The Fox Click Reincarnation"
+run/main_scene="res://scenes/boot_splash.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*uid://cnujm0fmj4o0e"
+FoxSettings="*res://scripts/settings.gd"
+Audio="*uid://ckiurpkgecuca"
+Casino="*uid://dwt4k27phgihj"
+Ghost="*uid://dhfndgpgq7k03"
+Achievements="*uid://cxfi6l5chfbgy"
+Mutations="*uid://b31qhtdpv4hkk"
+Fox="*uid://ekv8a4xpjt1g"
+WorldWatch="*uid://dqdkwoltyagm1"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/vsync/vsync_mode=2
+
+[file_customization]
+
+folder_colors={
+"res://scenes/": "blue",
+"res://scripts/": "green",
+"res://shaders/": "red"
+}
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
