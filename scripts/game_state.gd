@@ -288,8 +288,8 @@ func purify() -> bool:
 	return true
 
 func _check_infection_step() -> void:
-	var step := int(float(infection) / 20.0)
-	while infection_steps_done < step:
+	var infection_stage := int(float(infection) / 20.0)
+	while infection_steps_done < infection_stage:
 		infection_steps_done += 1
 		infection_step.emit(infection_steps_done)
 
@@ -433,8 +433,7 @@ func save_game() -> void:
 		"free_shards": free_shards,
 		"reinc": reinc,
 		"mutations": Mutations.active,
-		"ach": Achievements.unlocked,
-		"casino": Casino.get_state()
+		"ach": Achievements.unlocked
 	}
 	var f := FileAccess.open(GameData.SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -467,6 +466,14 @@ func load_game() -> void:
 	var saved_b: Array = parsed.get("b", [])
 	for i: int in range(mini(b.size(), saved_b.size())):
 		b[i] = int(saved_b[i])
+
+	# Восстанавливаем пороги купленных улучшений зданий.
+	# Старые сохранения без b_up остаются совместимыми: значения по умолчанию сохраняются.
+	var saved_b_up: Array = parsed.get("b_up", [])
+	for i: int in range(mini(b_up.size(), saved_b_up.size())):
+		if saved_b_up[i] is Array:
+			b_up[i] = saved_b_up[i].duplicate()
+
 	var saved_cu: Dictionary = parsed.get("cu", {})
 	for k: String in cu.keys():
 		cu[k] = bool(saved_cu.get(k, false))
@@ -474,5 +481,3 @@ func load_game() -> void:
 	Mutations.load_active(saved_muts)
 	var saved_ach: Dictionary = parsed.get("ach", {})
 	Achievements.load_unlocked(saved_ach)
-	var saved_cas: Dictionary = parsed.get("casino", {})
-	Casino.load_state(saved_cas)

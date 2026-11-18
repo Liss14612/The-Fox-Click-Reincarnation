@@ -74,12 +74,6 @@ var deal_bar: ProgressBar
 var current_deal: Dictionary = {}
 var deal_left: float = 0.0
 
-var casino_overlay: ColorRect
-var casino_status_lbl: Label
-var casino_spores_lbl: Label
-var casino_catch_btn: Button
-var casino_bet: int = 1
-
 var mut_overlay: ColorRect
 var mut_cards_box: VBoxContainer
 
@@ -114,17 +108,8 @@ func _ready() -> void:
 		if shake:
 			shake_time = 0.32
 	)
-	GameState.stall_detected.connect(func() -> void:
-		Casino.offer_via_fox()
-	)
 
-	Ghost.delta_ready.connect(func(d_sec: float) -> void:
-		ghost_lbl.text = "GHOST: " + Ghost.fmt(d_sec)
-		ghost_lbl.add_theme_color_override("font_color", Color("#39ff88") if d_sec < 0.0 else Color("#ff5266"))
-	)
-	Ghost.ghost_beaten.connect(func(bonus: int) -> void:
-		vfx.spawn_purchase_burst(Vector2(800, 120), "ПРИЗРАК ОБОГНАН! +%d ОСК." % bonus, true)
-	)
+	
 
 	Mutations.choices_offered.connect(_open_mutations_modal)
 	Achievements.unlocked_new.connect(func(_id: int, path: String, _lore: String) -> void:
@@ -132,25 +117,6 @@ func _ready() -> void:
 		vfx.spawn_floating_text(Vector2(800, 90), "UNLOCK: " + path, Color("#00e5ff"), 1.05)
 	)
 
-	Casino.spin_started.connect(func(bet: int) -> void:
-		casino_status_lbl.text = "БАРАБАН КРУТИТСЯ... (Ставка: %d спор)\nСледи за правым ухом Лиса!" % bet
-		casino_catch_btn.visible = false
-	)
-	Casino.ear_twitch.connect(func() -> void:
-		if casino_overlay.visible:
-			casino_catch_btn.visible = true
-	)
-	Casino.spin_resolved.connect(func(res: Dictionary) -> void:
-		casino_catch_btn.visible = false
-		if bool(res.get("busted", false)):
-			casino_status_lbl.text = "ШУЛЕР ПОЙМАН ЗА УХО! Выигрыш: +%d спор (×2)" % int(res["win"])
-			vfx.spawn_purchase_burst(Vector2(800, 420), "ЛИС ПОЙМАН! +%d СПОР" % int(res["win"]), true)
-		elif int(res["win"]) > 0:
-			casino_status_lbl.text = "ПОБЕДА ×%.0f! Выигрыш: +%d спор" % [float(res["mult"]), int(res["win"])]
-			vfx.spawn_purchase_burst(Vector2(800, 420), "+%d СПОР" % int(res["win"]))
-		else:
-			casino_status_lbl.text = "ПРОИГРЫШ... Лис усмехается и прячет твои %d спор." % int(res["bet"])
-	)
 
 	tick_timer = Timer.new()
 	tick_timer.wait_time = 0.1
@@ -174,9 +140,8 @@ func _input(event: InputEvent) -> void:
 		elif event.keycode == KEY_ESCAPE:
 			if pause_overlay.visible:
 				_set_paused(false)
-			elif debug_overlay.visible or casino_overlay.visible or logs_overlay.visible:
+			elif debug_overlay.visible or logs_overlay.visible:
 				debug_overlay.visible = false
-				casino_overlay.visible = false
 				logs_overlay.visible = false
 			else:
 				_set_paused(true)
@@ -241,16 +206,22 @@ func _process(delta: float) -> void:
 		crt_mat.set_shader_parameter("flash_red", flash_red_val)
 
 func _update_drawers(delta: float) -> void:
-	var modal_busy := deal_overlay.visible or debug_overlay.visible or casino_overlay.visible or mut_overlay.visible or logs_overlay.visible or pause_overlay.visible
+	var modal_busy: bool = (
+		deal_overlay.visible
+		or debug_overlay.visible
+		or mut_overlay.visible
+		or logs_overlay.visible
+		or pause_overlay.visible
+	)
 	var mpos := get_global_mouse_position()
 
-	var l_hover := not modal_busy and left_drawer.get_global_rect().has_point(mpos)
+	var l_hover: bool = not modal_busy and left_drawer.get_global_rect().has_point(mpos)
 	left_grace = 0.18 if (left_pinned or l_hover) else maxf(0.0, left_grace - delta)
 	left_open_t = lerpf(left_open_t, 1.0 if (left_pinned or left_grace > 0.0) else 0.0, minf(1.0, delta * 14.0))
 	left_drawer.offset_left = lerpf(-DRAWER_PANEL_W, 0.0, left_open_t)
 	left_drawer.offset_right = left_drawer.offset_left + TOTAL_DRAWER_W
 
-	var r_hover := not modal_busy and right_drawer.get_global_rect().has_point(mpos)
+	var r_hover: bool = not modal_busy and right_drawer.get_global_rect().has_point(mpos)
 	right_grace = 0.18 if (right_pinned or r_hover) else maxf(0.0, right_grace - delta)
 	right_open_t = lerpf(right_open_t, 1.0 if (right_pinned or right_grace > 0.0) else 0.0, minf(1.0, delta * 14.0))
 	right_drawer.offset_right = lerpf(DRAWER_PANEL_W, 0.0, right_open_t)
@@ -351,10 +322,7 @@ func _build_ui() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr_hbox.add_child(title)
 
-	ghost_lbl = Label.new()
-	ghost_lbl.text = "GHOST: --:--"
-	ghost_lbl.add_theme_color_override("font_color", Color("#926870"))
-	hdr_hbox.add_child(ghost_lbl)
+	
 
 	ach_btn = Button.new()
 	ach_btn.text = "[ ДОСТИЖЕНИЯ ]"
@@ -735,82 +703,6 @@ func _build_modals() -> void:
 	)
 	btns.add_child(no_btn)
 
-	# 2. Окно Casino.exe (с защитой от F5 и охотой на ухо Лиса)
-	casino_overlay = ColorRect.new()
-	casino_overlay.color = Color(0.0, 0.0, 0.0, 0.78)
-	casino_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	casino_overlay.visible = false
-	modal_layer.add_child(casino_overlay)
-
-	var cas_cc := CenterContainer.new()
-	cas_cc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	casino_overlay.add_child(cas_cc)
-
-	var cas_box := PanelContainer.new()
-	cas_box.custom_minimum_size = Vector2(540, 0)
-	cas_box.add_theme_stylebox_override("panel", FoxTheme.panel_style(Color("#ff1e38"), Color("#0a0103"), 3))
-	cas_cc.add_child(cas_box)
-
-	var cas_vb := VBoxContainer.new()
-	cas_vb.add_theme_constant_override("separation", 10)
-	cas_box.add_child(cas_vb)
-
-	var cas_hdr := HBoxContainer.new()
-	cas_vb.add_child(cas_hdr)
-	var cas_t := Label.new()
-	cas_t.text = "[CASINO.EXE] РУЛЕТКА СПОР // ШУЛЕРСТВО ЛИСА"
-	cas_t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cas_t.add_theme_color_override("font_color", Color("#ff1e38"))
-	cas_hdr.add_child(cas_t)
-
-	var cas_close := Button.new()
-	cas_close.text = "ЗАКРЫТЬ"
-	_style_button(cas_close)
-	cas_close.pressed.connect(func() -> void: casino_overlay.visible = false)
-	cas_hdr.add_child(cas_close)
-
-	casino_spores_lbl = Label.new()
-	casino_spores_lbl.add_theme_color_override("font_color", Color("#39ff88"))
-	cas_vb.add_child(casino_spores_lbl)
-
-	casino_status_lbl = Label.new()
-	casino_status_lbl.text = "Выбери ставку. Если Лис решит слить тебя — его ухо дёрнется за 0.4 сек до конца!"
-	casino_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	cas_vb.add_child(casino_status_lbl)
-
-	var bet_row := HBoxContainer.new()
-	bet_row.add_theme_constant_override("separation", 8)
-	cas_vb.add_child(bet_row)
-	for b_val: int in [1, 5, 10, 25]:
-		var bb := Button.new()
-		bb.text = "Ставка: %d" % b_val
-		bb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_style_button(bb)
-		bb.pressed.connect(func() -> void:
-			casino_bet = b_val
-			_refresh_casino_ui()
-		)
-		bet_row.add_child(bb)
-
-	var spin_btn := Button.new()
-	spin_btn.text = "КРУТИТЬ БАРАБАН (СТАВКА СПИСЫВАЕТСЯ СРАЗУ)"
-	_style_button(spin_btn, true)
-	spin_btn.pressed.connect(func() -> void:
-		Casino.spin(casino_bet)
-		_refresh_casino_ui()
-	)
-	cas_vb.add_child(spin_btn)
-
-	casino_catch_btn = Button.new()
-	casino_catch_btn.text = "!!! УХО ДЁРНУЛОСЬ — ПОЙМАТЬ ЛИСА ЗА ХВОСТ !!!"
-	casino_catch_btn.visible = false
-	_style_button(casino_catch_btn, true)
-	casino_catch_btn.pressed.connect(func() -> void:
-		Casino.on_fox_ear_clicked()
-		_refresh_casino_ui()
-	)
-	cas_vb.add_child(casino_catch_btn)
-
 	# 3. Окно выбора Мутаций мицелия (1 из 3)
 	mut_overlay = ColorRect.new()
 	mut_overlay.color = Color(0.0, 0.0, 0.0, 0.86)
@@ -992,11 +884,6 @@ func _build_modals() -> void:
 		GameState.state_changed.emit()
 	)
 	chaos_row.add_child(clr_fx)
-
-func _refresh_casino_ui() -> void:
-	casino_spores_lbl.text = "Твои споры: %d  |  Выбранная ставка: %d  |  Улик поймано: %d" % [
-		GameState.spores, casino_bet, Casino.clues
-	]
 
 func _open_mutations_modal(options: Array[String]) -> void:
 	for ch in mut_cards_box.get_children():
@@ -1189,8 +1076,6 @@ func _refresh_ui() -> void:
 	purify_btn.text = "БЛОК" if float(GameState.fx.get("purLock", 0.0)) > 0.0 else "Очистить (-50%)"
 	purify_btn.disabled = GameState.infection <= 0 or float(GameState.fx.get("purLock", 0.0)) > 0.0
 
-	if casino_overlay.visible:
-		_refresh_casino_ui()
 
 # ---------------------------------------------------------------- ПАУЗА / ВЫХОД В МЕНЮ
 

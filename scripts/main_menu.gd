@@ -267,23 +267,20 @@ func _restore_title() -> void:
 func _fmt_time(sec: float) -> String:
 	var s := int(sec)
 	if s >= 3600:
-		return "%d:%02d:%02d" % [s / 3600, (s % 3600) / 60, s % 60]
-	return "%02d:%02d" % [s / 60, s % 60]
-
-func _record_text() -> String:
-	var best: Dictionary = Ghost.best
-	if best.is_empty():
-		return "—"
-	var top := 0
-	for k: int in best.keys():
-		top = maxi(top, k)
-	return "%s (ф.%d)" % [_fmt_time(float(best[top])), top]
+		return "%d:%02d:%02d" % [floori(float(s) / 3600.0), floori(float(s % 3600) / 60.0), s % 60]
+	return "%02d:%02d" % [floori(float(s) / 60.0), s % 60]
 
 func _voice_text() -> String:
+	# Если игрок уже проходил реинкарнацию,
+	# Fox OS узнаёт его возвращение через GameState.
 	if GameState.reinc > 0:
-		return "> Fox OS: Снова ты? Рекорд фазы: %s" % _record_text()
+		return "> Fox OS: Снова ты? Реинкарнация №%d." % GameState.reinc
+
+	# Если найдено сохранение — показываем последнюю достигнутую фазу.
 	if _has_save:
 		return "> Fox OS: Ты вернулся. Фаза %d. Я не скучал." % GameState.last_phase
+
+	# Первое посещение игры.
 	return "> Fox OS: Я ждал тебя. Нажми."
 
 func _type_voice_line() -> void:
@@ -400,7 +397,6 @@ func _wipe_progress() -> void:
 	GameState.infection_steps_done = 0
 	GameState.last_phase = 1
 	Mutations.purge()
-	Casino.load_state({})
 	_has_save = false
 
 func _shake(mult: float) -> void:

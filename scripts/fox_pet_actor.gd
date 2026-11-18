@@ -41,7 +41,6 @@ func _ready() -> void:
 	bubble.add_child(bubble_lbl)
 
 	Fox.say.connect(func(txt: String) -> void: bubble_lbl.text = txt)
-	Casino.ear_twitch.connect(func() -> void: _ear_twitch = 0.45)
 
 # Реакция на клик игрока по кнопке (вызывается из main.gd)
 func react(is_crit: bool = false) -> void:
@@ -53,8 +52,9 @@ func react(is_crit: bool = false) -> void:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_hop = 1.0
-		if event.position.y <= 78.0 and Casino.on_fox_ear_clicked():
-			return
+		# Ухо реагирует самостоятельно, без внешней игровой подсистемы.
+		if event.position.y <= 78.0:
+			_ear_twitch = 0.35
 		Fox.on_poke()
 
 func _process(delta: float) -> void:
