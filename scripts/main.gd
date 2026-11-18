@@ -21,6 +21,7 @@ var sb_bar_bg: StyleBoxFlat
 var sb_bar_fill: StyleBoxFlat
 
 var ui_root: VBoxContainer
+var bg_rect: ColorRect
 var vfx: VfxLayer
 var crt_mat: ShaderMaterial
 var sigil_btn: CoreSigilButton
@@ -55,6 +56,15 @@ var tick_timer: Timer
 var _autoclick_cd: float = 0.0
 var sound_btn: Button
 var mute_fox_btn: Button
+
+# --- Печатная машинка для реплик Fox OS ---
+var _typewriter_busy: bool = false
+var _typewriter_full: String = ""
+var _typewriter_pos: int = 0
+var _typewriter_timer: Timer
+
+# --- Отслеживание смены фазы (атмосфера + эволюция Лиса) ---
+var _last_phase: int = -1
 
 var shop_list: VBoxContainer
 var shop_rows: Array[Dictionary] = []
@@ -96,7 +106,7 @@ func _ready() -> void:
 
 	GameState.state_changed.connect(_refresh_ui)
 	GameState.voice_logged.connect(func(txt: String) -> void:
-		voice_lbl.text = "> Fox OS: " + txt
+		_type_voice("> Fox OS: " + txt)
 	)
 	GameState.deal_requested.connect(_open_deal)
 	GameState.glitch_spawn_requested.connect(func(cnt: int) -> void:
@@ -109,14 +119,11 @@ func _ready() -> void:
 			shake_time = 0.32
 	)
 
-	
-
 	Mutations.choices_offered.connect(_open_mutations_modal)
 	Achievements.unlocked_new.connect(func(_id: int, path: String, _lore: String) -> void:
-		voice_lbl.text = "> Fox OS: Файл расшифрован -> " + path
+		_type_voice("> Fox OS: Файл расшифрован -> " + path)
 		vfx.spawn_floating_text(Vector2(800, 90), "UNLOCK: " + path, Color("#00e5ff"), 1.05)
 	)
-
 
 	tick_timer = Timer.new()
 	tick_timer.wait_time = 0.1
@@ -129,6 +136,14 @@ func _ready() -> void:
 	save_timer.autostart = true
 	save_timer.timeout.connect(GameState.save_game)
 	add_child(save_timer)
+
+	# --- Инициализация фазы и атмосферного фона ---
+	_last_phase = Economy.phase_of(GameState)
+	if bg_rect != null:
+		bg_rect.color = Economy.bg_color_for_phase(_last_phase)
+
+	# Первичная реплика Fox OS через печатную машинку
+	_type_voice("> Fox OS: Заработай. Возвысься. Стань мной.")
 
 	_refresh_ui()
 
@@ -148,6 +163,12 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	# --- Смена фазы: атмосфера + эволюция Лиса ---
+	var cur_ph := Economy.phase_of(GameState)
+	if cur_ph != _last_phase:
+		_on_phase_changed(_last_phase, cur_ph)
+		_last_phase = cur_ph
+
 	var now: float = Time.get_unix_time_from_system()
 	while not recent_clicks.is_empty() and now - recent_clicks[0] > 1.0:
 		recent_clicks.pop_front()
@@ -193,17 +214,68 @@ func _process(delta: float) -> void:
 		deal_bar.value = clampf(deal_left / 30.0, 0.0, 1.0)
 		if deal_left <= 0.0:
 			deal_overlay.visible = false
-			voice_lbl.text = "> Fox OS: Ты молчал. Я записал это как отказ."
+			_type_voice("> Fox OS: Ты молчал. Я записал это как отказ.")
 
 	flash_red_val = maxf(0.0, flash_red_val - delta * 1.4)
 	if crt_mat:
 		var inf_f := float(inf) / 100.0
-		var aber := 0.0008 + inf_f * 0.004 + (0.003 if Mutations.has_glitch("chroma") else 0.0)
-		var tear := 0.025 if (inf >= 80 or Mutations.has_glitch("tear")) else (0.01 if inf >= 60 else 0.0)
+		# Мягкие, не утомляющие глаза параметры шейдера
+		var aber := 0.0002 + inf_f * 0.001 + (0.001 if Mutations.has_glitch("chroma") else 0.0)
+		var tear := 0.005 if (inf >= 80 or Mutations.has_glitch("tear")) else 0.0
 		crt_mat.set_shader_parameter("aberration", aber)
 		crt_mat.set_shader_parameter("tear_strength", tear)
 		crt_mat.set_shader_parameter("bw_mode", 1.0 if float(GameState.fx.get("over", 0.0)) > 0.0 else 0.0)
-		crt_mat.set_shader_parameter("flash_red", flash_red_val)
+		crt_mat.set_shader_parameter("flash_red", flash_red_val * 0.5)
+
+# ---------------------------------------------------------------- ПЕРЕХОД ФАЗЫ
+
+func _on_phase_changed(old_ph: int, new_ph: int) -> void:
+	var old_tier := Economy.tier_of(old_ph) if old_ph > 0 else 1
+	var new_tier := Economy.tier_of(new_ph)
+
+	# Эволюция Лиса (метод идемпотентен)
+	if fox_pet != null:
+		fox_pet.evolve(new_tier)
+
+	# Плавная смена атмосферного фона через Tween
+	if bg_rect != null:
+		var bg_tw := create_tween()
+		bg_tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		bg_tw.tween_property(bg_rect, "color", Economy.bg_color_for_phase(new_ph), 0.9)
+
+	# Статусная реплика через печатную машинку
+	var phase_name: String = String(GameData.PHASES[new_ph - 1]["name"]).to_upper()
+	if new_tier > old_tier:
+		_type_voice("> Fox OS: ФАЗА %d // %s. Тир Лиса повышен до %d. Метки переписаны." % [new_ph, phase_name, new_tier])
+	else:
+		_type_voice("> Fox OS: ФАЗА %d // %s. Глубина растёт." % [new_ph, phase_name])
+
+# ---------------------------------------------------------------- ПЕЧАТНАЯ МАШИНКА (Fox OS)
+
+func _type_voice(text: String) -> void:
+	_typewriter_full = text
+	_typewriter_pos = 0
+	_typewriter_busy = true
+	voice_lbl.text = ""
+	if _typewriter_timer == null:
+		_typewriter_timer = Timer.new()
+		_typewriter_timer.wait_time = 0.022
+		_typewriter_timer.timeout.connect(_type_voice_tick)
+		add_child(_typewriter_timer)
+	_typewriter_timer.start()
+
+func _type_voice_tick() -> void:
+	if not _typewriter_busy:
+		if _typewriter_timer != null:
+			_typewriter_timer.stop()
+		return
+	_typewriter_pos += 1
+	voice_lbl.text = _typewriter_full.substr(0, _typewriter_pos)
+	if _typewriter_pos >= _typewriter_full.length():
+		_typewriter_timer.stop()
+		_typewriter_busy = false
+
+# ---------------------------------------------------------------- DRAWERS
 
 func _update_drawers(delta: float) -> void:
 	var modal_busy: bool = (
@@ -297,10 +369,10 @@ func _build_ui() -> void:
 	ui_layer.layer = 1
 	add_child(ui_layer)
 
-	var bg := ColorRect.new()
-	bg.color = Color("#030102")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ui_layer.add_child(bg)
+	bg_rect = ColorRect.new()
+	bg_rect.color = Color("#030102")
+	bg_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui_layer.add_child(bg_rect)
 
 	ui_root = VBoxContainer.new()
 	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -321,8 +393,6 @@ func _build_ui() -> void:
 	title.add_theme_color_override("font_color", Color("#ff1e38"))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr_hbox.add_child(title)
-
-	
 
 	ach_btn = Button.new()
 	ach_btn.text = "[ ДОСТИЖЕНИЯ ]"
@@ -699,7 +769,7 @@ func _build_modals() -> void:
 	_style_button(no_btn)
 	no_btn.pressed.connect(func() -> void:
 		deal_overlay.visible = false
-		voice_lbl.text = "> Fox OS: Отказ записан. Я запомню."
+		_type_voice("> Fox OS: Отказ записан. Я запомню.")
 	)
 	btns.add_child(no_btn)
 
@@ -962,26 +1032,59 @@ func _tick_fake_button(delta: float, inf: int) -> void:
 	if inf >= 80:
 		fake_timer -= delta
 		if fake_timer <= 0.0:
-			fake_timer = 5.5
+			fake_timer = 7.5
 			var idx := randi() % GameData.BUILDINGS.size()
 			var holder := Control.new()
 			holder.custom_minimum_size = Vector2(0, 38)
 			var fbtn := Button.new()
 			fbtn.set_anchors_preset(Control.PRESET_FULL_RECT)
 			fbtn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			fbtn.text = "%s [ERROR 146]  [×%d]" % [GameData.BUILDINGS[idx]["name"], GameState.b[idx]]
-			_style_button(fbtn)
+			fbtn.text = "%s [ERROR 146]  [ВЗЛОМАТЬ]" % [GameData.BUILDINGS[idx]["name"]]
+			_style_button(fbtn, true)
+			
 			fbtn.pressed.connect(func() -> void:
 				GameState.fake_clicks += 1
-				Audio.play_sfx("error")
-				flash_red_val = 0.85
 				shake_time = 0.25
-				voice_lbl.text = "> Fox OS: Доступ запрещен."
-				vfx.spawn_floating_text(get_global_mouse_position(), "ДОСТУП ЗАПРЕЩЕН!", Color("#ff1e38"), 1.15)
+				
+				# РУЛЕТКА ЭФФЕКТОВ ГЛИТЧА КАК В COOKIE CLICKER
+				var roll := randf()
+				if roll < 0.40:
+					# 1. Буст дохода на время
+					Audio.play_sfx("success")
+					flash_red_val = 0.4
+					GameState.fx["buffer_overflow"] = 15.0
+					_type_voice("> Fox OS: Переполнение буфера. Доход ускорен.")
+					vfx.spawn_floating_text(get_global_mouse_position(), "БУФЕР ×7 (15с)!", Color("#39ff88"), 1.2)
+				elif roll < 0.70:
+					# 2. Награда спорами
+					Audio.play_sfx("success")
+					flash_red_val = 0.5
+					GameState.spores += 3
+					GameState.state_changed.emit()
+					_type_voice("> Fox OS: Спортивный инъектор внедрен. (+3 споры)")
+					vfx.spawn_floating_text(get_global_mouse_position(), "+3 СПОРЫ!", Color("#00e5ff"), 1.2)
+				elif roll < 0.90:
+					# 3. Лорный артефакт / Прогресс
+					Audio.play_sfx("success")
+					flash_red_val = 0.6
+					GameState.earn(GameState.get_effective_cps().mul_float(30.0))
+					_type_voice("> Fox OS: Аномальный сектор расшифрован. Пакет данных принят.")
+					vfx.spawn_floating_text(get_global_mouse_position(), "ДАННЫЕ ЗАХВАЧЕНЫ!", Color("#d6ff3a"), 1.2)
+				else:
+					# 4. Штраф / Риск (негативный эффект)
+					Audio.play_sfx("error")
+					flash_red_val = 0.9
+					var penalty := GameState.coins.mul_float(0.05)
+					GameState.coins = GameState.coins.sub(penalty)
+					GameState.state_changed.emit()
+					_type_voice("> Fox OS: Ошибка доступа. Пакет поврежден, ресурсы сброшены.")
+					vfx.spawn_floating_text(get_global_mouse_position(), "СБОЙ СИСТЕМЫ!", Color("#ff1e38"), 1.3)
+
 				if is_instance_valid(fake_row):
 					fake_row.queue_free()
 					fake_row = null
 			)
+			
 			holder.add_child(fbtn)
 			shop_list.add_child(holder)
 			shop_list.move_child(holder, randi() % shop_list.get_child_count())
@@ -1076,7 +1179,6 @@ func _refresh_ui() -> void:
 	purify_btn.text = "БЛОК" if float(GameState.fx.get("purLock", 0.0)) > 0.0 else "Очистить (-50%)"
 	purify_btn.disabled = GameState.infection <= 0 or float(GameState.fx.get("purLock", 0.0)) > 0.0
 
-
 # ---------------------------------------------------------------- ПАУЗА / ВЫХОД В МЕНЮ
 
 func _build_pause_overlay() -> void:
@@ -1130,6 +1232,8 @@ func _build_pause_overlay() -> void:
 func _set_paused(on: bool) -> void:
 	pause_overlay.visible = on
 	tick_timer.paused = on
+	if _typewriter_timer != null:
+		_typewriter_timer.paused = on
 	if on:
 		GameState.save_game()
 
