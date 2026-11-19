@@ -164,7 +164,7 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	# --- Смена фазы: атмосфера + эволюция Лиса ---
-	var cur_ph := Economy.phase_of(GameState)
+	var cur_ph: int = Economy.phase_of(GameState)
 	if cur_ph != _last_phase:
 		_on_phase_changed(_last_phase, cur_ph)
 		_last_phase = cur_ph
@@ -187,19 +187,19 @@ func _process(delta: float) -> void:
 
 	if shake_time > 0.0:
 		shake_time -= delta
-		var shk := FoxSettings.shake_mult() * 2.0
+		var shk: float = FoxSettings.shake_mult() * 2.0
 		ui_root.position = Vector2(randf_range(-5.0, 5.0), randf_range(-4.0, 4.0)) * shk
 	else:
 		ui_root.position = Vector2.ZERO
 
 	var inf: int = Economy.inf_eff(GameState)
-	var jitter_active := inf >= 20 or Mutations.has_glitch("ui_jitter")
+	var jitter_active: bool = inf >= 20 or Mutations.has_glitch("ui_jitter")
 	for r: Dictionary in shop_rows:
 		var btn: Button = r["btn"]
 		if btn.has_meta("dodging"):
 			continue
 		if jitter_active:
-			var jit := randf_range(-1.8, 1.8)
+			var jit: float = randf_range(-1.8, 1.8)
 			btn.offset_left = jit
 			btn.offset_right = jit
 		elif not is_zero_approx(btn.offset_left) or not is_zero_approx(btn.offset_right):
@@ -218,10 +218,10 @@ func _process(delta: float) -> void:
 
 	flash_red_val = maxf(0.0, flash_red_val - delta * 1.4)
 	if crt_mat:
-		var inf_f := float(inf) / 100.0
+		var inf_f: float = float(inf) / 100.0
 		# Мягкие, не утомляющие глаза параметры шейдера
-		var aber := 0.0002 + inf_f * 0.001 + (0.001 if Mutations.has_glitch("chroma") else 0.0)
-		var tear := 0.005 if (inf >= 80 or Mutations.has_glitch("tear")) else 0.0
+		var aber: float = 0.0002 + inf_f * 0.001 + (0.001 if Mutations.has_glitch("chroma") else 0.0)
+		var tear: float = 0.005 if (inf >= 80 or Mutations.has_glitch("tear")) else 0.0
 		crt_mat.set_shader_parameter("aberration", aber)
 		crt_mat.set_shader_parameter("tear_strength", tear)
 		crt_mat.set_shader_parameter("bw_mode", 1.0 if float(GameState.fx.get("over", 0.0)) > 0.0 else 0.0)
@@ -230,8 +230,8 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------- ПЕРЕХОД ФАЗЫ
 
 func _on_phase_changed(old_ph: int, new_ph: int) -> void:
-	var old_tier := Economy.tier_of(old_ph) if old_ph > 0 else 1
-	var new_tier := Economy.tier_of(new_ph)
+	var old_tier: int = Economy.tier_of(old_ph) if old_ph > 0 else 1
+	var new_tier: int = Economy.tier_of(new_ph)
 
 	# Эволюция Лиса (метод идемпотентен)
 	if fox_pet != null:
@@ -285,7 +285,7 @@ func _update_drawers(delta: float) -> void:
 		or logs_overlay.visible
 		or pause_overlay.visible
 	)
-	var mpos := get_global_mouse_position()
+	var mpos: Vector2 = get_global_mouse_position()
 
 	var l_hover: bool = not modal_busy and left_drawer.get_global_rect().has_point(mpos)
 	left_grace = 0.18 if (left_pinned or l_hover) else maxf(0.0, left_grace - delta)
@@ -502,8 +502,8 @@ func _build_ui() -> void:
 			var bt := create_tween()
 			bt.tween_property(sigil_btn, "scale", Vector2(0.94, 0.94), 0.04)
 			bt.tween_property(sigil_btn, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		var greed := float(GameState.fx.get("greed", 0.0)) > 0.0
-		var txt := ("КРИТ ×%.0f! +%s" % [res["crit_mult"], "ERR_0x00" if greed else gain.format_ru()]) if is_crit else ("+%s" % ("ERR_0x00" if greed else gain.format_ru()))
+		var greed: bool = float(GameState.fx.get("greed", 0.0)) > 0.0
+		var txt: String = ("КРИТ ×%.0f! +%s" % [res["crit_mult"], "ERR_0x00" if greed else gain.format_ru()]) if is_crit else ("+%s" % ("ERR_0x00" if greed else gain.format_ru()))
 		vfx.spawn_floating_text(gpos, txt, Color("#d6ff3a") if is_crit else Color("#ff1e38"), 1.25 if is_crit else 1.0)
 	)
 	btn_center.add_child(sigil_btn)
@@ -975,7 +975,7 @@ func _open_mutations_modal(options: Array[String]) -> void:
 func _open_logs_modal() -> void:
 	for ch in logs_list_box.get_children():
 		ch.queue_free()
-	var items := Achievements.listing()
+	var items: Array = Achievements.listing()
 	for item: Dictionary in items:
 		var btn := Button.new()
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -1001,13 +1001,13 @@ func _open_deal(deal: Dictionary) -> void:
 	flash_red_val = 0.75
 
 func _on_shop_btn_hover(btn: Button) -> void:
-	var is_eater := float(GameState.fx.get("eater", 0.0)) > 0.0
-	var inf := Economy.inf_eff(GameState)
+	var is_eater: bool = float(GameState.fx.get("eater", 0.0)) > 0.0
+	var inf: int = Economy.inf_eff(GameState)
 	if (not is_eater and inf < 60 and not Mutations.has_glitch("dodge_shop")) or btn.has_meta("dodging"):
 		return
-	var dist := 34.0 if is_eater else 22.0
-	var dx := randf_range(-dist, dist)
-	var dy := randf_range(-8.0, 8.0)
+	var dist: float = 34.0 if is_eater else 22.0
+	var dx: float = randf_range(-dist, dist)
+	var dy: float = randf_range(-8.0, 8.0)
 	btn.set_meta("dodging", true)
 	var tw := create_tween()
 	tw.tween_property(btn, "offset_left", dx, 0.12)
@@ -1033,7 +1033,7 @@ func _tick_fake_button(delta: float, inf: int) -> void:
 		fake_timer -= delta
 		if fake_timer <= 0.0:
 			fake_timer = 7.5
-			var idx := randi() % GameData.BUILDINGS.size()
+			var idx: int = randi() % GameData.BUILDINGS.size()
 			var holder := Control.new()
 			holder.custom_minimum_size = Vector2(0, 38)
 			var fbtn := Button.new()
@@ -1041,13 +1041,13 @@ func _tick_fake_button(delta: float, inf: int) -> void:
 			fbtn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			fbtn.text = "%s [ERROR 146]  [ВЗЛОМАТЬ]" % [GameData.BUILDINGS[idx]["name"]]
 			_style_button(fbtn, true)
-			
+
 			fbtn.pressed.connect(func() -> void:
 				GameState.fake_clicks += 1
 				shake_time = 0.25
-				
+
 				# РУЛЕТКА ЭФФЕКТОВ ГЛИТЧА КАК В COOKIE CLICKER
-				var roll := randf()
+				var roll: float = randf()
 				if roll < 0.40:
 					# 1. Буст дохода на время
 					Audio.play_sfx("success")
@@ -1074,7 +1074,7 @@ func _tick_fake_button(delta: float, inf: int) -> void:
 					# 4. Штраф / Риск (негативный эффект)
 					Audio.play_sfx("error")
 					flash_red_val = 0.9
-					var penalty := GameState.coins.mul_float(0.05)
+					var penalty: BigNum = GameState.coins.mul_float(0.05)
 					GameState.coins = GameState.coins.sub(penalty)
 					GameState.state_changed.emit()
 					_type_voice("> Fox OS: Ошибка доступа. Пакет поврежден, ресурсы сброшены.")
@@ -1084,7 +1084,7 @@ func _tick_fake_button(delta: float, inf: int) -> void:
 					fake_row.queue_free()
 					fake_row = null
 			)
-			
+
 			holder.add_child(fbtn)
 			shop_list.add_child(holder)
 			shop_list.move_child(holder, randi() % shop_list.get_child_count())
@@ -1094,8 +1094,8 @@ func _refresh_ui() -> void:
 	var ph: int = Economy.phase_of(GameState)
 	var tier: int = Economy.tier_of(ph)
 	var inf: int = Economy.inf_eff(GameState)
-	var greed := float(GameState.fx.get("greed", 0.0)) > 0.0
-	var bin_shop := Mutations.has_glitch("binary_shop")
+	var greed: bool = float(GameState.fx.get("greed", 0.0)) > 0.0
+	var bin_shop: bool = Mutations.has_glitch("binary_shop")
 
 	sigil_btn.tier = tier
 	sigil_btn.infection_pct = inf
@@ -1124,7 +1124,7 @@ func _refresh_ui() -> void:
 
 	for mode: String in amt_btns.keys():
 		var ab: Button = amt_btns[mode]
-		var is_sel := (mode == GameState.buy_amt)
+		var is_sel: bool = (mode == GameState.buy_amt)
 		ab.add_theme_stylebox_override("normal", sb_btn_active if is_sel else sb_btn_normal)
 		ab.add_theme_color_override("font_color", Color.BLACK if is_sel else Color("#ff1e38"))
 
@@ -1139,7 +1139,7 @@ func _refresh_ui() -> void:
 		var meta: Label = row["meta"]
 		btn.text = "%s   [×%d]" % [bdata["name"], GameState.b[i]]
 		btn.disabled = not GameState.coins.gte(cost)
-		var cost_str := "ERR_0x00" if greed else ("0x" + String.num_int64(int(cost.to_float()), 16) if (bin_shop and cost.exponent < 9) else cost.format_ru())
+		var cost_str: String = "ERR_0x00" if greed else ("0x" + String.num_int64(int(cost.to_float()), 16) if (bin_shop and cost.exponent < 9) else cost.format_ru())
 		meta.text = "Цена%s: %s · +%s/с" % [
 			(" ×%d" % n if n > 1 else ""),
 			cost_str,
@@ -1147,8 +1147,8 @@ func _refresh_ui() -> void:
 		]
 
 	var ups: Array[Dictionary] = GameState.get_available_upgrades()
-	var lock_up := float(GameState.fx.get("voidLock", 0.0)) > 0.0
-	var sig := ""
+	var lock_up: bool = float(GameState.fx.get("voidLock", 0.0)) > 0.0
+	var sig: String = ""
 	for u: Dictionary in ups:
 		sig += u["label"] + "|"
 	if sig != last_up_sig:

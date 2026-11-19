@@ -78,7 +78,7 @@ func evolve(to_tier: int) -> void:
 	# Идемпотентно: повторный вызов с тем же тиром ничего не делает.
 	if to_tier == _current_tier:
 		return
-	var rising := to_tier > _current_tier
+	var rising: bool = to_tier > _current_tier
 	_current_tier = to_tier
 	_wake = 1.0
 	_hop = 1.0
@@ -87,7 +87,7 @@ func evolve(to_tier: int) -> void:
 	pivot_offset = size * 0.5
 	_tier_tween = create_tween()
 	_tier_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	var peak := 1.36 if rising else 0.82
+	var peak: float = 1.36 if rising else 0.82
 	_tier_tween.tween_property(self, "scale", Vector2(peak, peak), 0.24)
 	_tier_tween.tween_property(self, "scale", Vector2.ONE, 0.42)
 	_type_bubble("Эволюция // ТИР %d. Метки переписаны." % to_tier)
@@ -118,7 +118,7 @@ func _tw_tick() -> void:
 
 func _process(delta: float) -> void:
 	# Автодетект смены тира (на случай, если main.gd не успел вызвать evolve).
-	var ct := Economy.tier_of(Economy.phase_of(GameState))
+	var ct: int = Economy.tier_of(Economy.phase_of(GameState))
 	if ct != _current_tier:
 		evolve(ct)
 
@@ -133,23 +133,23 @@ func _process(delta: float) -> void:
 		_blink = 0.12
 		_blink_cd = randf_range(2.0, 5.0)
 
-	var sleeping := Fox.state == Fox.S.SLEEPING
+	var sleeping: bool = Fox.state == Fox.S.SLEEPING
 	if _was_sleeping and not sleeping:
 		_wake = 0.6
 		_hop = 1.0
 	_was_sleeping = sleeping
 
-	var vp := get_viewport_rect().size
+	var vp: Vector2 = get_viewport_rect().size
 	var target: Vector2
 	if anchor != null and is_instance_valid(anchor):
-		var r := anchor.get_global_rect()
+		var r: Rect2 = anchor.get_global_rect()
 		target = Vector2(r.position.x + SIT_DX, r.position.y + r.size.y * SIT_Y_FRAC + SIT_DY)
 	else:
 		target = Vector2(120.0, vp.y - 142.0)
 	position = position.lerp(target, minf(1.0, delta * 10.0))
 
 	# облачко не вылезает за края окна
-	var shift := 0.0
+	var shift: float = 0.0
 	if position.x - 65.0 < 12.0:
 		shift = 12.0 - (position.x - 65.0)
 	elif position.x + 195.0 > vp.x - 12.0:
@@ -172,31 +172,31 @@ func _shape(pts: PackedVector2Array, fill: Color, line: Color, w: float) -> void
 	draw_polyline(pts + PackedVector2Array([pts[0]]), line, w, true)
 
 func _draw() -> void:
-	var tier := Economy.tier_of(Economy.phase_of(GameState))
-	var sleeping := Fox.state == Fox.S.SLEEPING
+	var tier: int = Economy.tier_of(Economy.phase_of(GameState))
+	var sleeping: bool = Fox.state == Fox.S.SLEEPING
 	var calm: bool = FoxSettings.reduce_noise
-	var breathe := sin(_t * (1.2 if sleeping else 2.2)) * (0.8 if calm else 1.6)
-	var body_bob := breathe + (4.0 if sleeping else 0.0) - sin(_hop * PI) * 16.0
-	var head_bob := body_bob + (5.0 if sleeping else 0.0)
-	var sway := sin(_t * 1.5) * (2.0 if calm else 6.0)
-	var red := Color("#ff1e38")
+	var breathe: float = sin(_t * (1.2 if sleeping else 2.2)) * (0.8 if calm else 1.6)
+	var body_bob: float = breathe + (4.0 if sleeping else 0.0) - sin(_hop * PI) * 16.0
+	var head_bob: float = body_bob + (5.0 if sleeping else 0.0)
+	var sway: float = sin(_t * 1.5) * (2.0 if calm else 6.0)
+	var red: Color = Color("#ff1e38")
 
 	# тень
 	draw_circle(Vector2(65.0, 128.0), 24.0, Color(0, 0, 0, 0.7))
 
 	# хвост свисает вниз с края кнопки и покачивается
-	var tail := _poly(PackedVector2Array([
+	var tail: PackedVector2Array = _poly(PackedVector2Array([
 		Vector2(48, 100), Vector2(26 + sway * 0.4, 112), Vector2(10 + sway, 132), Vector2(22 + sway, 136), Vector2(40, 116)
 	]), body_bob)
 	_shape(tail, Color("#1e0408"), red, 2.0)
 	if tier >= 3:
-		var tail2 := _poly(PackedVector2Array([
+		var tail2: PackedVector2Array = _poly(PackedVector2Array([
 			Vector2(50, 96), Vector2(30, 104 - sway * 0.3), Vector2(16, 120 - sway), Vector2(30, 122 - sway), Vector2(46, 108)
 		]), body_bob)
 		_shape(tail2, Color("#160205"), Color("#c0392b"), 1.6)
 
 	# туловище (сидит)
-	var body := _poly(PackedVector2Array([Vector2(46, 70), Vector2(84, 70), Vector2(92, 118), Vector2(40, 118)]), body_bob)
+	var body: PackedVector2Array = _poly(PackedVector2Array([Vector2(46, 70), Vector2(84, 70), Vector2(92, 118), Vector2(40, 118)]), body_bob)
 	_shape(body, Color("#180306"), red if tier >= 2 else Color("#c0392b"), 2.0)
 
 	# передние лапки
@@ -206,8 +206,8 @@ func _draw() -> void:
 	# уши
 	_shape(_poly(PackedVector2Array([Vector2(40, 20), Vector2(57, 38), Vector2(42, 52)]), head_bob),
 		Color("#1a0205"), red, 2.2)
-	var tw := Vector2(randf_range(-5.0, 5.0), randf_range(-6.0, 3.0)) if _ear_twitch > 0.0 else Vector2.ZERO
-	var perk := Vector2(0.0, -6.0) if _wake > 0.0 else Vector2.ZERO
+	var tw: Vector2 = Vector2(randf_range(-5.0, 5.0), randf_range(-6.0, 3.0)) if _ear_twitch > 0.0 else Vector2.ZERO
+	var perk: Vector2 = Vector2(0.0, -6.0) if _wake > 0.0 else Vector2.ZERO
 	_shape(_poly(PackedVector2Array([Vector2(90, 20) + tw + perk, Vector2(73, 38), Vector2(88, 52)]), head_bob),
 		Color("#2d050b") if _ear_twitch > 0.0 else Color("#1a0205"),
 		Color("#d6ff3a") if _ear_twitch > 0.0 else red, 2.4)
@@ -221,12 +221,12 @@ func _draw() -> void:
 		draw_line(_pt(Vector2(51, 53), head_bob), _pt(Vector2(59, 54), head_bob), Color("#926870"), 2.0)
 		draw_line(_pt(Vector2(71, 54), head_bob), _pt(Vector2(79, 53), head_bob), Color("#926870"), 2.0)
 	else:
-		var head_global := global_position + Vector2(65.0, 53.0 + head_bob)
-		var to_mouse := get_global_mouse_position() - head_global
-		var look := to_mouse.normalized() * clampf(to_mouse.length() / 140.0, 0.0, 1.0) * 1.9
-		var pup := Color("#39ff88") if _ear_twitch > 0.0 else red
+		var head_global: Vector2 = global_position + Vector2(65.0, 53.0 + head_bob)
+		var to_mouse: Vector2 = get_global_mouse_position() - head_global
+		var look: Vector2 = to_mouse.normalized() * clampf(to_mouse.length() / 140.0, 0.0, 1.0) * 1.9
+		var pup: Color = Color("#39ff88") if _ear_twitch > 0.0 else red
 		for ex: float in [55.0, 75.0]:
-			var ec := _pt(Vector2(ex, 53.0), head_bob)
+			var ec: Vector2 = _pt(Vector2(ex, 53.0), head_bob)
 			draw_circle(ec, 4.0, Color.WHITE)
 			draw_circle(ec + look, 2.3, pup)
 	if tier >= 4:
@@ -234,7 +234,7 @@ func _draw() -> void:
 
 	# --- кибер-метки (тир 3+) ---
 	if tier >= 3:
-		var cyan := Color("#00e5ff")
+		var cyan: Color = Color("#00e5ff")
 		draw_line(_pt(Vector2(42, 60), head_bob), _pt(Vector2(50, 64), head_bob), cyan, 1.4)
 		draw_line(_pt(Vector2(88, 60), head_bob), _pt(Vector2(80, 64), head_bob), cyan, 1.4)
 		draw_circle(_pt(Vector2(46, 68), head_bob), 1.2, cyan)

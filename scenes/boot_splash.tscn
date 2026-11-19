@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://302q6wujntr5"]
 
-[ext_resource type="Script" path="res://scripts/boot_splash.gd" id="1_boot"]
+[ext_resource type="Script" uid="uid://b5wuqiy535pix" path="res://scripts/boot_splash.gd" id="1_boot"]
 
-[node name="BootSplash" type="Control"]
+[node name="BootSplash" type="Control" unique_id=486906448]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_boot")
 
-[node name="Bg" type="ColorRect" parent="."]
+[node name="Bg" type="ColorRect" parent="." unique_id=1752561460]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -21,7 +21,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.0196078, 0, 0, 1)
 
-[node name="LogoStage" type="Control" parent="."]
+[node name="LogoStage" type="Control" parent="." unique_id=399952410]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -31,7 +31,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="LogoCanvas" type="Control" parent="LogoStage"]
+[node name="LogoCanvas" type="Control" parent="LogoStage" unique_id=152013089]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -41,12 +41,12 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="StudioLabel" type="Label" parent="LogoStage"]
+[node name="StudioLabel" type="Label" parent="LogoStage" unique_id=1889425393]
 unique_name_in_owner = true
 layout_mode = 0
 text = "FOX_OS STUDIO"
 
-[node name="WarnStage" type="Control" parent="."]
+[node name="WarnStage" type="Control" parent="." unique_id=1724693177]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -56,7 +56,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="IconCanvas" type="Control" parent="WarnStage"]
+[node name="IconCanvas" type="Control" parent="WarnStage" unique_id=1566101982]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -66,36 +66,36 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="ControlsText" type="Label" parent="WarnStage"]
+[node name="ControlsText" type="Label" parent="WarnStage" unique_id=1597244163]
 unique_name_in_owner = true
 layout_mode = 0
 text = "Вы можете нажимать левой кнопкой, правой кнопкой или клавишей Пробел."
 
-[node name="EscText" type="Label" parent="WarnStage"]
+[node name="EscText" type="Label" parent="WarnStage" unique_id=1007665744]
 unique_name_in_owner = true
 layout_mode = 0
 text = "При дискомфорте в настройках доступен режим снижения шума."
 
-[node name="WarnTitle" type="Label" parent="WarnStage"]
+[node name="WarnTitle" type="Label" parent="WarnStage" unique_id=1060772445]
 unique_name_in_owner = true
 layout_mode = 0
 text = "ПРЕДУПРЕЖДЕНИЕ О СВЕТОЧУВСТВИТЕЛЬНОСТИ:"
 
-[node name="WarnBody" type="Label" parent="WarnStage"]
+[node name="WarnBody" type="Label" parent="WarnStage" unique_id=1934127491]
 unique_name_in_owner = true
 layout_mode = 0
 text = "Эта игра содержит вспышки, глитчи и мерцание, которые могут повлиять на людей со светочувствительной эпилепсией."
 
-[node name="SkipHint" type="Label" parent="WarnStage"]
+[node name="SkipHint" type="Label" parent="WarnStage" unique_id=209601207]
 unique_name_in_owner = true
 layout_mode = 0
 text = "Удерживайте любую кнопку, чтобы пропустить"
 
-[node name="HoldBar" type="ProgressBar" parent="WarnStage"]
+[node name="HoldBar" type="ProgressBar" parent="WarnStage" unique_id=1152889615]
 unique_name_in_owner = true
 layout_mode = 0
 
-[node name="Fade" type="ColorRect" parent="."]
+[node name="Fade" type="ColorRect" parent="." unique_id=907610268]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15

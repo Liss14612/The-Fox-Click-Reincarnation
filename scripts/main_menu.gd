@@ -183,7 +183,13 @@ func _style_panels() -> void:
 	confirm_lbl.add_theme_color_override("font_color", RED_SOFT)
 	confirm_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	confirm_lbl.custom_minimum_size = Vector2(420.0, 0.0)
-	info_lbl.add_theme_color_override("font_color", Color("#ecd9dc"))
+	info_lbl.add_theme_color_override("font_color", Color("#c8b0b5"))
+	info_lbl.add_theme_font_size_override("font_size", 15)
+	info_lbl.add_theme_constant_override("line_spacing", 6)
+	info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	info_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_lbl.custom_minimum_size = Vector2(420.0, 0.0)
+	info_lbl.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	archive_close_btn.flat = true
 	for st: String in ["normal", "hover", "pressed", "focus"]:
 		archive_close_btn.add_theme_stylebox_override(st, StyleBoxEmpty.new())
@@ -202,10 +208,10 @@ func _setup_crt() -> void:
 func _apply_noise_mode() -> void:
 	var calm: bool = FoxSettings.reduce_noise
 	if _crt_mat:
-		_crt_mat.set_shader_parameter("aberration", 0.0 if calm else 0.0015)
-		_crt_mat.set_shader_parameter("scanline_alpha", 0.0 if calm else 0.16)
+		_crt_mat.set_shader_parameter("aberration", 0.0 if calm else 0.00022)
+		_crt_mat.set_shader_parameter("scanline_alpha", 0.0 if calm else 0.04)
 		_crt_mat.set_shader_parameter("tear_strength", 0.0)
-	crt_overlay.visible = (_crt_mat != null) and not calm
+	crt_overlay.visible = _crt_mat != null
 	_restore_title()
 
 # ---------------------------------------------------------------- ПРАВАЯ ЧАСТЬ: ПЕЧАТЬ + ЛИС
@@ -238,16 +244,33 @@ func _layout_visual() -> void:
 
 func _title_glitch_loop() -> void:
 	while is_inside_tree():
-		await get_tree().create_timer(randf_range(1.8, 4.5)).timeout
+		var calm: bool = FoxSettings.reduce_noise
+		var wait_sec: float = randf_range(6.5, 11.0) if calm else randf_range(2.2, 4.8)
+		await get_tree().create_timer(wait_sec).timeout
 		if not is_inside_tree():
 			return
-		if FoxSettings.reduce_noise or _entering:
+		if _entering:
 			continue
 		var tw := create_tween()
-		for _i in range(randi_range(2, 4)):
-			tw.tween_callback(_scramble_title)
-			tw.tween_interval(randf_range(0.03, 0.07))
+		if calm:
+			tw.tween_callback(_scramble_title_soft)
+			tw.tween_interval(0.05)
+		else:
+			for _i in range(randi_range(2, 3)):
+				tw.tween_callback(_scramble_title)
+				tw.tween_interval(randf_range(0.035, 0.07))
 		tw.tween_callback(_restore_title)
+
+func _scramble_title_soft() -> void:
+	var chars: PackedStringArray = TITLE_TEXT.split("")
+	var tries: int = 0
+	while tries < chars.size():
+		var i := randi() % chars.size()
+		if chars[i] != " " and chars[i] != "\n":
+			chars[i] = GLITCH_GLYPHS[randi() % GLITCH_GLYPHS.length()]
+			break
+		tries += 1
+	title_lbl.text = "".join(chars)
 
 func _scramble_title() -> void:
 	var chars: PackedStringArray = TITLE_TEXT.split("")
@@ -400,11 +423,12 @@ func _wipe_progress() -> void:
 	_has_save = false
 
 func _shake(mult: float) -> void:
-	if FoxSettings.reduce_noise or mult <= 0.0:
+	if mult <= 0.0:
 		return
-	var amp := 14.0 * mult
+	var scale_mult: float = 0.25 if FoxSettings.reduce_noise else 1.0
+	var amp := 12.0 * mult * scale_mult
 	var sh := create_tween()
-	for _i in range(6):
+	for _i in range(5):
 		sh.tween_property(self, "position", Vector2(randf_range(-amp, amp), randf_range(-amp, amp) * 0.6), 0.03)
 	sh.tween_property(self, "position", Vector2.ZERO, 0.03)
 
