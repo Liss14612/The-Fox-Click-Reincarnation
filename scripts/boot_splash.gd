@@ -7,6 +7,7 @@ const AUTO_TIME := 4.0
 const RED := Color("#ff1e38")
 const RED_DEEP := Color("#c0392b")
 const DIM := Color("#7a5a60")
+const TXT := Color("#ecd9dc")
 
 @onready var logo_stage: Control = %LogoStage
 @onready var logo_canvas: Control = %LogoCanvas
@@ -33,43 +34,65 @@ var _spiral: PackedVector2Array = PackedVector2Array()
 
 func _ready() -> void:
 	var f := SystemFont.new()
-	f.font_names = PackedStringArray(["JetBrains Mono", "Consolas", "Cascadia Mono", "Courier New", "DejaVu Sans Mono", "monospace"])
+	f.font_names = PackedStringArray([
+		"JetBrains Mono", "Consolas", "Cascadia Mono", "Courier New", "DejaVu Sans Mono", "monospace"
+	])
 	var th := Theme.new()
 	th.default_font = f
 	th.default_font_size = 16
 	theme = th
 
-	for i in range(97):
-		var t := float(i) / 96.0
-		_spiral.append(Vector2.from_angle(t * TAU * 3.2 - PI * 0.5) * (0.1 + 0.9 * t))
+	_spiral.resize(97)
+	for i: int in range(97):
+		var t: float = float(i) / 96.0
+		_spiral[i] = Vector2.from_angle(t * TAU * 2.6 - PI * 0.5) * (0.14 + 0.86 * t)
 
 	studio_lbl.add_theme_font_size_override("font_size", 28)
 	studio_lbl.add_theme_color_override("font_color", Color.WHITE)
-	controls_txt.add_theme_color_override("font_color", Color("#ecd9dc"))
-	esc_txt.add_theme_color_override("font_color", Color("#ecd9dc"))
-	for l: Label in [controls_txt, esc_txt, warn_body]:
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	studio_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	controls_txt.text = "ЛКМ, ПКМ или Пробел\nдля взаимодействия"
+	esc_txt.text = "Снижение шума доступно\nв настройках"
+
+	controls_txt.add_theme_color_override("font_color", TXT)
+	esc_txt.add_theme_color_override("font_color", TXT)
+	warn_body.add_theme_color_override("font_color", TXT)
+	for lbl: Label in [controls_txt, esc_txt, warn_body]:
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
 	warn_title.add_theme_font_size_override("font_size", 38)
 	warn_title.add_theme_color_override("font_color", RED)
 	warn_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	warn_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
 	warn_body.add_theme_font_size_override("font_size", 19)
 	skip_hint.add_theme_color_override("font_color", DIM)
 	skip_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	skip_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	var fill := StyleBoxFlat.new()
 	fill.bg_color = RED
 	var back := StyleBoxFlat.new()
 	back.bg_color = Color("#1a0205")
+	back.border_width_left = 1
+	back.border_width_right = 1
+	back.border_width_top = 1
+	back.border_width_bottom = 1
+	back.border_color = RED_DEEP
 	hold_bar.add_theme_stylebox_override("fill", fill)
 	hold_bar.add_theme_stylebox_override("background", back)
 	hold_bar.show_percentage = false
 	hold_bar.max_value = 1.0
 	hold_bar.value = 0.0
 
-	resized.connect(_layout)
-	logo_canvas.draw.connect(_draw_logo)
-	icon_canvas.draw.connect(_draw_icons)
+	if not resized.is_connected(_layout):
+		resized.connect(_layout)
+	if not logo_canvas.draw.is_connected(_draw_logo):
+		logo_canvas.draw.connect(_draw_logo)
+	if not icon_canvas.draw.is_connected(_draw_icons):
+		icon_canvas.draw.connect(_draw_icons)
+
 	_layout()
 
 	logo_stage.modulate.a = 0.0
@@ -83,58 +106,102 @@ func _ready() -> void:
 	tw.tween_property(logo_stage, "modulate:a", 0.0, 0.6)
 	tw.tween_callback(_start_warning)
 
+func _exit_tree() -> void:
+	if resized.is_connected(_layout):
+		resized.disconnect(_layout)
+	if logo_canvas != null and logo_canvas.draw.is_connected(_draw_logo):
+		logo_canvas.draw.disconnect(_draw_logo)
+	if icon_canvas != null and icon_canvas.draw.is_connected(_draw_icons):
+		icon_canvas.draw.disconnect(_draw_icons)
+
+func _get_cols_metrics(w: float) -> Dictionary:
+	var col_w: float = clampf(w * 0.28, 220.0, 320.0)
+	var gap: float = clampf(w * 0.08, 48.0, 120.0)
+	var total_w: float = col_w * 2.0 + gap
+	var start_x: float = (w - total_w) * 0.5
+	if total_w > w - 48.0:
+		col_w = maxf(180.0, (w - 84.0) * 0.5)
+		gap = 36.0
+		start_x = (w - (col_w * 2.0 + gap)) * 0.5
+	return {
+		"col_w": col_w,
+		"left_x": start_x,
+		"right_x": start_x + col_w + gap
+	}
+
+func _get_icons_offset_y(h: float) -> float:
+	# Блок инструкций смещён ближе к центру экрана
+	return maxf(230.0, h * 0.36)
+
 func _layout() -> void:
-	var w := size.x
-	var h := size.y
+	var w: float = size.x
+	var h: float = size.y
+	var m: Dictionary = _get_cols_metrics(w)
+	var col_w: float = float(m["col_w"])
+	var left_x: float = float(m["left_x"])
+	var right_x: float = float(m["right_x"])
+	var icons_y: float = _get_icons_offset_y(h)
+
 	studio_lbl.position = Vector2(0.0, h * 0.5 + 150.0)
 	studio_lbl.size = Vector2(w, 40.0)
-	studio_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	controls_txt.position = Vector2(60.0, 290.0)
-	controls_txt.size = Vector2(430.0, 90.0)
-	esc_txt.position = Vector2(w - 490.0, 290.0)
-	esc_txt.size = Vector2(430.0, 90.0)
-	warn_title.position = Vector2(0.0, h * 0.55)
-	warn_title.size = Vector2(w, 50.0)
-	warn_body.position = Vector2(w * 0.1, h * 0.55 + 70.0)
-	warn_body.size = Vector2(w * 0.8, 90.0)
+
+	# Предупреждение о светочувствительности вверху
+	var warn_top: float = clampf(h * 0.08, 36.0, 96.0)
+	warn_title.position = Vector2(w * 0.06, warn_top)
+	warn_title.size = Vector2(w * 0.88, 52.0)
+
+	warn_body.position = Vector2(w * 0.1, warn_top + 62.0)
+	warn_body.size = Vector2(w * 0.8, 84.0)
+
+	# Тексты инструкций строго под своими иконками в центральной зоне
+	var text_y: float = icons_y + 194.0
+	controls_txt.position = Vector2(left_x, text_y)
+	controls_txt.size = Vector2(col_w, 64.0)
+
+	esc_txt.position = Vector2(right_x, text_y)
+	esc_txt.size = Vector2(col_w, 64.0)
+
 	skip_hint.position = Vector2(0.0, h - 110.0)
 	skip_hint.size = Vector2(w, 30.0)
+
 	hold_bar.position = Vector2(w * 0.5 - 150.0, h - 70.0)
-	hold_bar.size = Vector2(300.0, 8.0)
+	hold_bar.size = Vector2(300.0, 10.0)
+
 	logo_canvas.queue_redraw()
 	icon_canvas.queue_redraw()
 
 # ---------------------------------------------------------------- ЛОГО
 
 func _draw_logo() -> void:
-	var c := logo_canvas.size * 0.5 + Vector2(0.0, -30.0)
+	var c: Vector2 = logo_canvas.size * 0.5 + Vector2(0.0, -30.0)
 	if _glitch_left > 0.0:
 		_logo_pass(c + _glitch_off, RED, true)
 		_logo_pass(c - _glitch_off * 0.6, Color(0.2, 1.0, 0.9, 0.6), true)
 	_logo_pass(c, Color.WHITE, false)
 
 func _logo_pass(c: Vector2, tint: Color, flat: bool) -> void:
-	var R := 110.0
-	logo_canvas.draw_circle(c, R * 1.55, Color(1.0, 0.0, 0.15, 0.07))
+	var r: float = 110.0
+	logo_canvas.draw_circle(c, r * 1.55, Color(1.0, 0.0, 0.15, 0.07))
 	var pts := PackedVector2Array()
-	for p: Vector2 in _spiral:
-		pts.append(c + p * R)
-	var ear_fill := tint if flat else RED_DEEP
-	var line_col := tint if flat else Color.WHITE
-	var back_col := tint if flat else Color.BLACK
-	# уши (печать-лиса)
+	pts.resize(_spiral.size())
+	for i: int in range(_spiral.size()):
+		pts[i] = c + _spiral[i] * r
+
+	var ear_fill: Color = tint if flat else RED_DEEP
+	var line_col: Color = tint if flat else Color.WHITE
+	var back_col: Color = tint if flat else Color.BLACK
+
 	for sgn: float in [-1.0, 1.0]:
 		var tri := PackedVector2Array([
-			c + Vector2(sgn * R * 0.95, -R * 0.30),
-			c + Vector2(sgn * R * 0.72, -R * 1.30),
-			c + Vector2(sgn * R * 0.12, -R * 0.85)
+			c + Vector2(sgn * r * 0.95, -r * 0.30),
+			c + Vector2(sgn * r * 0.72, -r * 1.30),
+			c + Vector2(sgn * r * 0.12, -r * 0.85)
 		])
 		logo_canvas.draw_colored_polygon(tri, ear_fill)
 		logo_canvas.draw_polyline(tri + PackedVector2Array([tri[0]]), line_col, 6.0, true)
-	# спираль
-	logo_canvas.draw_polyline(pts, back_col, 24.0, true)
-	logo_canvas.draw_polyline(pts, line_col, 13.0, true)
-	# глаз-зрачок в центре
+
+	logo_canvas.draw_polyline(pts, back_col, 22.0, true)
+	logo_canvas.draw_polyline(pts, line_col, 11.0, true)
 	logo_canvas.draw_circle(c, 7.0, ear_fill)
 
 func _process(delta: float) -> void:
@@ -190,15 +257,30 @@ func _key_icon(rect: Rect2, label: String, fsize: int) -> void:
 	icon_canvas.draw_style_box(_sb(Color("#e8e0e0"), [6, 6, 6, 6]), rect)
 	var font := icon_canvas.get_theme_default_font()
 	var ts := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize)
-	icon_canvas.draw_string(font, rect.position + Vector2((rect.size.x - ts.x) * 0.5, (rect.size.y + ts.y * 0.6) * 0.5),
-		label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color.BLACK)
+	icon_canvas.draw_string(
+		font,
+		rect.position + Vector2((rect.size.x - ts.x) * 0.5, (rect.size.y + ts.y * 0.6) * 0.5),
+		label,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		fsize,
+		Color.BLACK
+	)
 
 func _draw_icons() -> void:
-	_mouse_icon(Vector2(150.0, 70.0), true)
-	_mouse_icon(Vector2(250.0, 70.0), false)
-	_key_icon(Rect2(105.0, 175.0, 290.0, 52.0), "Пробел", 20)
-	var w := icon_canvas.size.x
-	_key_icon(Rect2(w - 275.0, 130.0, 80.0, 52.0), "Esc", 20)
+	var w: float = icon_canvas.size.x
+	var h: float = icon_canvas.size.y
+	var m: Dictionary = _get_cols_metrics(w)
+	var col_w: float = float(m["col_w"])
+	var left_cx: float = float(m["left_x"]) + col_w * 0.5
+	var right_cx: float = float(m["right_x"]) + col_w * 0.5
+	var base_y: float = _get_icons_offset_y(h)
+
+	_mouse_icon(Vector2(left_cx - 72.0, base_y), true)
+	_mouse_icon(Vector2(left_cx + 12.0, base_y), false)
+	_key_icon(Rect2(left_cx - 120.0, base_y + 106.0, 240.0, 50.0), "Пробел", 20)
+
+	_key_icon(Rect2(right_cx - 44.0, base_y + 106.0, 88.0, 50.0), "Esc", 20)
 
 # ---------------------------------------------------------------- ВВОД / ВЫХОД
 
@@ -217,4 +299,7 @@ func _leave() -> void:
 	_leaving = true
 	var tw := create_tween()
 	tw.tween_property(fade, "modulate:a", 1.0, 0.4)
-	tw.tween_callback(func() -> void: get_tree().change_scene_to_file(NEXT_SCENE))
+	tw.tween_callback(_go_to_next_scene)
+
+func _go_to_next_scene() -> void:
+	get_tree().change_scene_to_file(NEXT_SCENE)
