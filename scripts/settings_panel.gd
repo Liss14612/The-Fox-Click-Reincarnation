@@ -16,6 +16,7 @@ var _pages: Array[VBoxContainer] = []
 var _toggle_btns: Dictionary = {} # key: String -> Button
 var _slider_controls: Dictionary = {} # key: String -> { "slider": HSlider, "label": Label }
 var _settings_changed_cb: Callable
+var _initialized: bool = false
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", FoxTheme.panel_style(RED, BG, 2))
@@ -50,7 +51,7 @@ func _ready() -> void:
 		var b := Button.new()
 		b.text = names[i]
 		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(_select_tab.bind(i))
+		b.pressed.connect(_select_tab.bind(i, true))
 		tab_row.add_child(b)
 		_tabs.append(b)
 		var page := VBoxContainer.new()
@@ -74,7 +75,8 @@ func _ready() -> void:
 	if not FoxSettings.changed.is_connected(_settings_changed_cb):
 		FoxSettings.changed.connect(_settings_changed_cb)
 
-	_select_tab(0)
+	_select_tab(0, false)
+	_initialized = true
 
 func _exit_tree() -> void:
 	if _settings_changed_cb.is_valid() and FoxSettings.changed.is_connected(_settings_changed_cb):
@@ -102,7 +104,7 @@ func _tab_style(active: bool) -> StyleBoxFlat:
 	s.content_margin_bottom = 8
 	return s
 
-func _select_tab(idx: int) -> void:
+func _select_tab(idx: int, play_sound: bool = true) -> void:
 	for i in range(_tabs.size()):
 		var act := i == idx
 		_pages[i].visible = act
@@ -113,7 +115,7 @@ func _select_tab(idx: int) -> void:
 		b.add_theme_color_override("font_color", fc)
 		b.add_theme_color_override("font_hover_color", fc)
 		b.add_theme_color_override("font_pressed_color", fc)
-	if is_inside_tree():
+	if play_sound and _initialized and is_inside_tree():
 		Audio.play_sfx("ui")
 
 func _row(page: VBoxContainer, text: String) -> HBoxContainer:

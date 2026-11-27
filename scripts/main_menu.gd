@@ -46,11 +46,21 @@ const SEAL_SCALE := 1.35
 
 var _seal: CoreSigilButton
 var _entering: bool = false
+var _user_interacted: bool = false
 var _open_panel: Control = null
 var _has_save: bool = false
 var _crt_mat: ShaderMaterial
 
 func _ready() -> void:
+	_user_interacted = false
+	fade.color = Color(0.0, 0.0, 0.0, 1.0)
+	fade.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	fade.visible = true
+	flash.color = Color(0.0, 0.0, 0.0, 1.0)
+	flash.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	flash.visible = false
+	visual.visible = false
+
 	_has_save = FileAccess.file_exists(GameData.SAVE_PATH)
 	_apply_mono_theme()
 	_style_texts()
@@ -59,8 +69,6 @@ func _ready() -> void:
 	_build_seal()
 	_setup_crt()
 
-	flash.modulate.a = 0.0
-	fade.modulate.a = 1.0
 	for p: Control in [shade, settings_panel, archive_panel, confirm_panel, info_panel]:
 		p.visible = false
 
@@ -87,23 +95,38 @@ func _ready() -> void:
 	)
 	for b: Button in [continue_btn, new_btn, ach_btn, settings_btn, credits_btn, quit_btn, yes_btn, no_btn, archive_close_btn, info_close_btn]:
 		b.mouse_entered.connect(func() -> void:
-			if not b.disabled:
+			if _user_interacted and not _entering and not b.disabled:
+				Audio.play_sfx("ui")
+		)
+		b.focus_entered.connect(func() -> void:
+			if _user_interacted and not _entering and not b.disabled:
 				Audio.play_sfx("ui")
 		)
 	FoxSettings.reduce_noise_changed.connect(func(_on: bool) -> void: _apply_noise_mode())
 
 	visual.resized.connect(_layout_visual)
-	title_lbl.resized.connect(func() -> void: title_lbl.pivot_offset = title_lbl.size * 0.5)
+	title_lbl.resized.connect(func() -> void:
+		title_lbl.pivot_offset = title_lbl.size * 0.5
+	)
 	title_lbl.text = TITLE_TEXT
 	_layout_visual()
 	_apply_noise_mode()
 
-	var intro := create_tween()
-	intro.tween_property(fade, "modulate:a", 0.0, 0.7)
-	intro.tween_callback(_type_voice_line)
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	visual.visible = true
 
+	var fade_tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	fade_tw.tween_property(fade, "modulate:a", 0.0, 0.9)
+
+	_type_voice_line()
 	(continue_btn if _has_save else new_btn).grab_focus()
 	_title_glitch_loop()
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion or event is InputEventMouseButton or event is InputEventKey or event is InputEventJoypadButton:
+		_user_interacted = true
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and _open_panel != null:
@@ -170,7 +193,6 @@ func _style_menu_buttons() -> void:
 		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	for b: Button in [continue_btn, new_btn, ach_btn, settings_btn, credits_btn, quit_btn]:
 		b.custom_minimum_size = Vector2(380.0, 50.0)
-	# кнопка выхода — как в референсе, выделена красным
 	quit_btn.add_theme_stylebox_override("normal", _box(Color("#2a050c"), RED, 2))
 
 func _style_panels() -> void:
@@ -243,14 +265,12 @@ func _layout_visual() -> void:
 # ---------------------------------------------------------------- НАЗВАНИЕ / ЛОГ ЛИСА
 
 func _title_glitch_loop() -> void:
-	while is_inside_tree():
+	while is_inside_tree() and not _entering:
 		var calm: bool = FoxSettings.reduce_noise
 		var wait_sec: float = randf_range(6.5, 11.0) if calm else randf_range(2.2, 4.8)
 		await get_tree().create_timer(wait_sec).timeout
-		if not is_inside_tree():
+		if not is_inside_tree() or _entering:
 			return
-		if _entering:
-			continue
 		var tw := create_tween()
 		if calm:
 			tw.tween_callback(_scramble_title_soft)
@@ -262,6 +282,8 @@ func _title_glitch_loop() -> void:
 		tw.tween_callback(_restore_title)
 
 func _scramble_title_soft() -> void:
+	if _entering:
+		return
 	var chars: PackedStringArray = TITLE_TEXT.split("")
 	var tries: int = 0
 	while tries < chars.size():
@@ -273,6 +295,8 @@ func _scramble_title_soft() -> void:
 	title_lbl.text = "".join(chars)
 
 func _scramble_title() -> void:
+	if _entering:
+		return
 	var chars: PackedStringArray = TITLE_TEXT.split("")
 	for _n in range(randi_range(2, 4)):
 		var i := randi() % chars.size()
@@ -294,16 +318,10 @@ func _fmt_time(sec: float) -> String:
 	return "%02d:%02d" % [floori(float(s) / 60.0), s % 60]
 
 func _voice_text() -> String:
-	# Если игрок уже проходил реинкарнацию,
-	# Fox OS узнаёт его возвращение через GameState.
 	if GameState.reinc > 0:
 		return "> Fox OS: Снова ты? Реинкарнация №%d." % GameState.reinc
-
-	# Если найдено сохранение — показываем последнюю достигнутую фазу.
 	if _has_save:
 		return "> Fox OS: Ты вернулся. Фаза %d. Я не скучал." % GameState.last_phase
-
-	# Первое посещение игры.
 	return "> Fox OS: Я ждал тебя. Нажми."
 
 func _type_voice_line() -> void:
@@ -423,7 +441,7 @@ func _wipe_progress() -> void:
 	_has_save = false
 
 func _shake(mult: float) -> void:
-	if mult <= 0.0:
+	if mult <= 0.0 or _entering:
 		return
 	var scale_mult: float = 0.25 if FoxSettings.reduce_noise else 1.0
 	var amp := 12.0 * mult * scale_mult
@@ -441,10 +459,20 @@ func _enter_game() -> void:
 		b.disabled = true
 	Audio.play_sfx("crit")
 	Audio.play_sfx("click")
-	var calm: bool = FoxSettings.reduce_noise
-	var tw := create_tween()
-	tw.tween_property(flash, "modulate:a", 0.5 if calm else 1.0, 0.05)
-	tw.tween_property(flash, "modulate:a", 0.0, 0.22).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tw.tween_property(fade, "modulate:a", 1.0, 0.5)
-	tw.tween_callback(func() -> void: get_tree().change_scene_to_file(MAIN_SCENE))
-	_shake(FoxSettings.screen_shake)
+
+	position = Vector2.ZERO
+	_restore_title()
+	flash.visible = false
+	flash.modulate.a = 0.0
+
+	fade.color = Color(0.0, 0.0, 0.0, 1.0)
+	fade.visible = true
+	fade.modulate.a = 0.0
+
+	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(fade, "modulate:a", 1.0, 0.65)
+	tw.tween_interval(0.12)
+	tw.tween_callback(func() -> void:
+		position = Vector2.ZERO
+		get_tree().change_scene_to_file(MAIN_SCENE)
+)
